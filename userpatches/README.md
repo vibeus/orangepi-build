@@ -32,6 +32,9 @@ UBUNTU_CODENAME=jammy
 
 ---
 ## How to build custom image?
+more build flags, https://docs.armbian.com/Developer-Guide_Build-Options/
+. Note! Not all flags are supported.
+
 ``` shell
 # run in sdk root path
 
