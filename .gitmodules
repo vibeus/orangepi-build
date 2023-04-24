@@ -1,0 +1,3 @@
+[submodule "userpatches/overlay/home/orangepi/C1B-Factory-Ageing"]
+	path = userpatches/overlay/home/orangepi/C1B-Factory-Ageing
+	url = git@github.com:vibeus/C1B-Factory-Ageing.git

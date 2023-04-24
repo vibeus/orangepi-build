@@ -1417,13 +1417,13 @@ prepare_host()
 		fi
 	fi
 
-	if grep -qE "(Microsoft|WSL)" /proc/version; then
-		if [ -f /.dockerenv ]; then
-			display_alert "Building images using Docker on WSL2 may fail" "" "wrn"
-		else
-			exit_with_error "Windows subsystem for Linux is not a supported build environment"
-		fi
-	fi
+	# if grep -qE "(Microsoft|WSL)" /proc/version; then
+		# if [ -f /.dockerenv ]; then
+			# display_alert "Building images using Docker on WSL2 may fail" "" "wrn"
+		# else
+			# exit_with_error "Windows subsystem for Linux is not a supported build environment"
+		# fi
+	# fi
 
 	if systemd-detect-virt -q -c; then
 		display_alert "Running in container" "$(systemd-detect-virt)" "info"

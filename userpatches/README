@@ -1,2 +1,47 @@
-Please read documentation about customizing build configuration
+Please read documentation about customizing build configuration  
 https:/www.orangepi.org
+
+# Vibe Custom Image
+
+## OS Image Enviroment Specs:
+- OS: Linux Ubuntu Jammy 
+- Kernel: 5.16.17
+- Python: 3.10
+
+
+```text
+PRETTY_NAME="Orange Pi 3.0.8 Jammy"
+NAME="Ubuntu"
+VERSION_ID="22.04"
+VERSION="22.04.2 LTS (Jammy Jellyfish)"
+VERSION_CODENAME=jammy
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=jammy
+```
+---
+## Source Files and Build Scripts
+### Rootfs custom build injection script
+`orangepi-build/userpatches/customize-image.sh`
+### Overlay files located at
+`orangepi-build/userpatches/overlay`
+
+---
+## How to build custom image?
+``` shell
+# run in sdk root path
+
+# build command
+sudo ./build.sh BOARD=orangepizero2 BUILD_OPT=image RELEASE=jammy
+ BUILD_MINIMAL=no BUILD_DESKTOP=no KERNEL_CONFIGURE=no
+```
+
+
+## Image Path 
+```
+../orangepi-build/output/images/Orangepizero2_3.0.8_ubuntu_jammy_server_linux5.16.17/*.img
+```

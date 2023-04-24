@@ -36,63 +36,41 @@ Main() {
 			# your code here
 			;;
 		focal)
-			FocalVibeCustomImage
 			# your code here
 			;;
 		jammy)
+			JammyVibeCustomImage
 			# your code here
 			;;
 	esac
 } # Main
 
-
-FocalVibeCustomImage() {
+JammyVibeCustomImage() {
 	echo "Installing Ubuntu Focol- Vibe Custom Image"
+	
+	echo "---> installing python pip and pyaudio"
+	sudo apt-get update
+	sudo apt-get install python3-dev python3-pip python3-pyaudio
+	
 
-# # Manage NVMe drive, create ethereum account and change hostname on first boot
-#         cp /tmp/overlay/armbian_first_run.txt /boot
-#         cp -f /tmp/overlay/rc.local /etc
-#         cp -f /tmp/overlay/first_reboot.sh /usr/local/bin
-# 	# Install Trinity client script
-# 	cp -f /tmp/overlay/install-trinity /usr/local/bin
-# 	# Limit cpu frequency to prevent CPU throttling (nanopc-t4 only)
-# 	#if [ "$BOARD" == "nanopct4" ];
-# 	#then
-# 	#	cp -f /tmp/overlay/cpufrequtils /etc/default
-# 	#fi
-# 	# Configure unattended upgrades
-# 	cp -f /tmp/overlay/02-armbian-periodic /etc/apt/apt.conf.d/
-# 	cp -f /tmp/overlay/20auto-upgrades /etc/apt/apt.conf.d/
-# 	cp -f /tmp/overlay/50unattended-upgrades /etc/apt/apt.conf.d/
-# 	# Override some systemd timer values
-# 	install -Dv /dev/null /etc/systemd/system/apt-daily.timer.d/override.conf
-# 	cat << EOF >> /etc/systemd/system/apt-daily.timer.d/override.conf
+	echo "---> installing python pip dependency libs"
+	pip3 install pyusb pyaudio numpy pyserial v4l2py
 
-# Add APT EthRaspbian repository
-# 	apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 8A584409D327B0A5
-# 	add-apt-repository -n "deb http://apt.ethraspbian.com bionic main"
-# 	add-apt-repository -n "deb http://apt.ethraspbian.com bionic-security main"
-# 	add-apt-repository "deb http://apt.ethraspbian.com bionic-upgrades main"
-# 	# Install Ethereum packages
-# 	apt-get install geth
-# 	apt-get install parity nethermind swarm parity ipfs raiden status.im-node vipnode prysm-beacon prysm-validator lighthouse
-# 	# Install ATS script for handling fan activiy and disable ZRAM on rockpro64 to avoid RAM issues
-# 	if [ "$BOARD" == "rockpro64" ];
-# 	then
-#         	apt-get install ats-rockpro64
-# 		systemctl disable armbian-zram-config
-# 	fi
-# 	if [ "$BOARD" == "nanopct4" ];
-# 	then
-# 		apt-get install nanopct4-fan-pwm
-# 	fi
-# 	# Create alias for upgrading Ethereum packages
-# 	cat <<EOF >> /etc/bash.bashrc
-# alias update-ethereum='
-# sudo apt-get update
-# sudo apt-get install geth swarm ipfs parity nethermind raiden status.im-node vipnode prysm-beacon prysm-validator lighthouse'
+	
+	echo "---> enable serial port5 to boot config overlay"
+	sudo bash -c "echo overlays=uart5 >> /boot/orangepiEnv.txt"
 
-
+	
+	echo "---> copy app project"
+	cp -rf /tmp/overlay/home/orangepi/C1B-Factory-Ageing/SDK/camera-ageing-test-app /home/orangepi
+	
+	# userpatches/overlay/etc/init.d/S99_vibe_ageing_app
+	echo "---> copy app start script"
+	cp -f /tmp/overlay/etc/init.d/S99_vibe_ageing_app /etc/init.d
+	cp -f /tmp/overlay/etc/rc.local /etc
+	
+	# cp -f /tmp/overlay/rc.local /etc
+	sudo sync
 }
 
 
