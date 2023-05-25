@@ -11,7 +11,7 @@
 
 DIR=/home/orangepi/camera-ageing-test-app
 DAEMON=$DIR/ageing_app.py
-DAEMON_OPTS="--serial_port /dev/ttyS5"
+DAEMON_OPTS="--serial_port /dev/ttyS5 --config $DIR/config/vibe-c1b-4h-ageing.cfg"
 DAEMON_USER=root
 DAEMON_NAME=vibe_ageing_app
 PIDFILE=/var/run/$DAEMON_NAME.pid
@@ -22,6 +22,8 @@ DAEMON="/usr/bin/python3.8 $DAEMON"
 . /lib/lsb/init-functions
 
 do_start () {
+    chown orangepi $DIR
+
     log_daemon_msg "Starting system $DAEMON_NAME daemon"
     start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
     log_end_msg $?

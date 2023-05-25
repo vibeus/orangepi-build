@@ -39,7 +39,7 @@ more build flags, https://docs.armbian.com/Developer-Guide_Build-Options/
 # run in sdk root path
 
 # build command
-sudo ./build.sh BOARD=orangepizero2 BUILD_OPT=image RELEASE=jammy
+sudo ./build.sh BOARD=orangepizero2 BUILD_OPT=image RELEASE=focal
  BUILD_MINIMAL=no BUILD_DESKTOP=no KERNEL_CONFIGURE=no
 ```
 

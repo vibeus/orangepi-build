@@ -13,4 +13,6 @@
 
 service S99_vibe_ageing_app start
 
+
+sudo ifconfig eth0 10.0.1.22 netmask 255.255.255.0
 exit 0
