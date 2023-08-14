@@ -11,8 +11,17 @@
 #
 # By default this script does nothing.
 
+
+# auto start vibe ageing testing python app
 service S99_vibe_ageing_app start
 
-
+# ip config for local ssh acces
 sudo ifconfig eth0 10.0.1.22 netmask 255.255.255.0
+
+# regular sync to prevent data loss when direct power outage
+while [ 1 ]; do
+    sync
+    sleep 5
+done
+
 exit 0

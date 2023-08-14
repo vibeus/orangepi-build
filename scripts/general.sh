@@ -492,39 +492,39 @@ fetch_from_repo()
 	local changed=false
 
 	# when we work offline we simply return the sources to their original state
-	if ! $offline; then
-		local local_hash
-		local_hash=$(git rev-parse @ 2>/dev/null)
+	# if ! $offline; then
+	# 	local local_hash
+	# 	local_hash=$(git rev-parse @ 2>/dev/null)
 
-		case $ref_type in
-			branch)
-			# TODO: grep refs/heads/$name
-			local remote_hash
-			remote_hash=$(improved_git ls-remote -h "${url}" "$ref_name" | head -1 | cut -f1)
-			[[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
-			;;
+	# 	case $ref_type in
+	# 		branch)
+	# 		# TODO: grep refs/heads/$name
+	# 		local remote_hash
+	# 		remote_hash=$(improved_git ls-remote -h "${url}" "$ref_name" | head -1 | cut -f1)
+	# 		[[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
+	# 		;;
 
-			tag)
-			local remote_hash
-			remote_hash=$(improved_git ls-remote -t "${url}" "$ref_name" | cut -f1)
-			if [[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]]; then
-				remote_hash=$(improved_git ls-remote -t "${url}" "$ref_name^{}" | cut -f1)
-				[[ -z $remote_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
-			fi
-			;;
+	# 		tag)
+	# 		local remote_hash
+	# 		remote_hash=$(improved_git ls-remote -t "${url}" "$ref_name" | cut -f1)
+	# 		if [[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]]; then
+	# 			remote_hash=$(improved_git ls-remote -t "${url}" "$ref_name^{}" | cut -f1)
+	# 			[[ -z $remote_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
+	# 		fi
+	# 		;;
 
-			head)
-			local remote_hash
-			remote_hash=$(improved_git ls-remote "${url}" HEAD | cut -f1)
-			[[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
-			;;
+	# 		head)
+	# 		local remote_hash
+	# 		remote_hash=$(improved_git ls-remote "${url}" HEAD | cut -f1)
+	# 		[[ -z $local_hash || "${local_hash}" != "${remote_hash}" ]] && changed=true
+	# 		;;
 
-			commit)
-			[[ -z $local_hash || $local_hash == "@" ]] && changed=true
-			;;
-		esac
+	# 		commit)
+	# 		[[ -z $local_hash || $local_hash == "@" ]] && changed=true
+	# 		;;
+	# 	esac
 
-	fi # offline
+	# fi # offline
 
 	if [[ $changed == true ]]; then
 
@@ -591,7 +591,7 @@ fetch_from_repo()
 			else
 				sref="head"
 			fi
-			fetch_from_repo "$surl" "$workdir/$i" "$sref"
+			# fetch_from_repo "$surl" "$workdir/$i" "$sref"
 		done
 	fi
 } #############################################################################
