@@ -1,5 +1,6 @@
 source "${BASH_SOURCE%/*}/rk3399_gpu_vpu.inc"
-source "${BASH_SOURCE%/*}/rk3588_gpu_vpu.inc"
+source "${BASH_SOURCE%/*}/rk35xx_gpu_vpu.inc"
+source "${BASH_SOURCE%/*}/rk356x_gpu_vpu.inc"
 
 enable_extension "rkbin-tools"
 ARCH=arm64
@@ -10,7 +11,7 @@ BOOTENV_FILE='rockchip.txt'
 UBOOT_TARGET_MAP=";;idbloader.bin uboot.img trust.bin"
 BOOTDELAY=0
 OVERLAY_PREFIX='rockchip'
-SERIALCON=${SERIALCON:=$([ $BRANCH == "legacy" ] && echo "ttyFIQ0:1500000" || echo "ttyS2:1500000")}
+SERIALCON=${SERIALCON:=$([[ $BRANCH == "legacy" || $BOARDFAMILY == "rockchip-rk3588" && $BRANCH == "current" ]] && echo "ttyFIQ0:1500000" || echo "ttyS2:1500000")}
 GOVERNOR="ondemand"
 BOOTBRANCH="branch:v2020.10-rockchip64"
 PACKAGE_LIST_FAMILY="ethtool can-utils"
@@ -37,7 +38,7 @@ else
 	PKG_PREFIX=""
 fi
 
-if [[ $BOOTCONFIG == *3399* ]]; then
+if [[ $BOOTCONFIG =~ *3399*|*3566* ]]; then
 
 	CPUMIN=${CPUMIN:="408000"}
 	CPUMAX=${CPUMAX:="1800000"}
@@ -57,11 +58,26 @@ if [[ $BOARD =~ orangepir1plus|orangepir1plus-lts ]]; then
 	MINILOADER_BLOB='rk33/rk322xh_miniloader_v2.50.bin'
 	BL31_BLOB='rk33/rk322xh_bl31_v1.44.elf'
 
-elif [[ $BOARD =~ orangepi5|orangepi5b ]]; then
+elif [[ $BOARDFAMILY == "rockchip-rk3588" ]]; then
+
+	BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
+
+	if [[ "${BOARD}x" =~ orangepi5maxx|orangepi5prox|orangepi5plusx|orangepiaimax|orangepi5x|orangepi5bx|orangepi5ultrax ]]; then
+
+		DDR_BLOB="${DDR_BLOB:=rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin}"
+		BL31_BLOB='rk35/rk3588_bl31_v1.45_20240422.elf'
+	else
+		DDR_BLOB="${DDR_BLOB:=rk35/rk3588_ddr_lp4_2112MHz_lp5_2736MHz_v1.11.bin}"
+		BL31_BLOB='rk35/rk3588_bl31_v1.38.elf'
+	fi
+
+elif [[ $BOARD =~ orangepicm4|orangepi3b ]]; then
 
         BOOT_SCENARIO="${BOOT_SCENARIO:=spl-blobs}"
-        DDR_BLOB="${DDR_BLOB:=rk35/rk3588_ddr_lp4_2112MHz_lp5_2736MHz_v1.08.bin}"
-        BL31_BLOB='rk35/rk3588_bl31_v1.28.elf'
+	BOOT_SOC=rk3568
+        DDR_BLOB="${DDR_BLOB:=rk35/rk3566_ddr_1056MHz_v1.10.bin}"
+	BL31_BLOB='rk35/rk3568_bl31_v1.28.elf'
+
 else
 
 	ATFPATCHDIR='atf-rk3399'
@@ -113,20 +129,31 @@ uboot_custom_postprocess()
 
 	if [[ $BOOT_SUPPORT_SPI == yes ]]; then
 
-		if [[ $BOARD =~ orangepi5|orangepi5b ]]; then
+		if [[ $BOARDFAMILY == "rockchip-rk3588" ]]; then
 
 			tools/mkimage -n rk3588 -T rksd -d $RKBIN_DIR/$DDR_BLOB:spl/u-boot-spl.bin idbloader.img
-			dd if=/dev/zero of=rkspi_loader.img bs=1M count=0 seek=16
+			dd if=/dev/zero of=rkspi_loader.img bs=1M count=0 seek=4
 			/sbin/parted -s rkspi_loader.img mklabel gpt
-			/sbin/parted -s rkspi_loader.img unit s mkpart idbloader 64 7167
-			/sbin/parted -s rkspi_loader.img unit s mkpart vnvm 7168 7679
-			/sbin/parted -s rkspi_loader.img unit s mkpart reserved_space 7680 8063
-			/sbin/parted -s rkspi_loader.img unit s mkpart reserved1 8064 8127
-			/sbin/parted -s rkspi_loader.img unit s mkpart uboot_env 8128 8191
-			/sbin/parted -s rkspi_loader.img unit s mkpart reserved2 8192 16383
-			/sbin/parted -s rkspi_loader.img unit s mkpart uboot 16384 32734
+			/sbin/parted -s rkspi_loader.img unit s mkpart idbloader 64 1023
+			/sbin/parted -s rkspi_loader.img unit s mkpart uboot 1024 7167
+			#/sbin/parted -s rkspi_loader.img unit s mkpart vnvm 7168 7679
+			#/sbin/parted -s rkspi_loader.img unit s mkpart reserved_space 7680 8063
+			#/sbin/parted -s rkspi_loader.img unit s mkpart reserved1 8064 8127
+			#/sbin/parted -s rkspi_loader.img unit s mkpart uboot_env 8128 8191
+			#/sbin/parted -s rkspi_loader.img unit s mkpart reserved2 8192 16383
 			dd if=idbloader.img of=rkspi_loader.img seek=64 conv=notrunc
-			dd if=u-boot.itb of=rkspi_loader.img seek=16384 conv=notrunc
+			dd if=u-boot.itb of=rkspi_loader.img seek=1024 conv=notrunc
+			#dd if=$EXTER/packages/blobs/splash/logo.bmp of=rkspi_loader.img seek=8192 conv=notrunc
+
+		elif [[ $BOARDFAMILY == "rockchip-rk356x" ]]; then
+
+			tools/mkimage -n rk3568 -T rksd -d $RKBIN_DIR/$DDR_BLOB:spl/u-boot-spl.bin idbloader.img
+			dd if=/dev/zero of=rkspi_loader.img bs=1M count=0 seek=4
+			/sbin/parted -s rkspi_loader.img mklabel gpt
+			/sbin/parted -s rkspi_loader.img unit s mkpart idbloader 64 1023
+			/sbin/parted -s rkspi_loader.img unit s mkpart uboot 1024 7167
+			dd if=idbloader.img of=rkspi_loader.img seek=64 conv=notrunc
+			dd if=u-boot.itb of=rkspi_loader.img seek=1024 conv=notrunc
 
 		fi
 	fi
@@ -149,6 +176,11 @@ uboot_custom_postprocess()
 		trust_merger --replace bl31.elf $RKBIN_DIR/$BL31_BLOB trust.ini
 
         elif [[ $BOOT_SCENARIO == "spl-blobs" || $BOOT_SCENARIO == "tpl-blob-atf-mainline" ]]; then
+		if [[ $BOARD =~ orangepicm4|orangepi3b ]]; then
+			tools/mkimage -n rk3568 -T rksd -d $RKBIN_DIR/$DDR_BLOB:spl/u-boot-spl.bin idbloader.img
+		elif [[ $BOARD =~ orangepi4-lts|orangepi800 ]]; then
+			tools/mkimage -n rk3399 -T rksd -d $RKBIN_DIR/$DDR_BLOB:spl/u-boot-spl.bin idbloader.img
+		fi
 
 		:
 
@@ -240,8 +272,10 @@ family_tweaks()
 	# execute specific tweaks function if present
 	[[ $(type -t family_tweaks_s) == function ]] && family_tweaks_s
 
-	[[ "$BRANCH" =~ legacy|current ]] && rk3399_gpu_vpu_tweaks
-	[[ "$BRANCH" =~ legacy && "$BOARD" =~ orangepi5|orangepi5b ]] && rk3588_gpu_vpu_tweaks
+	[[ "$BRANCH" =~ legacy ]] && rk3399_gpu_vpu_tweaks
+	[[ "$BRANCH" =~ current && $BOARDFAMILY == "rk3399" ]] && rk35xx_gpu_vpu_tweaks
+	[[ "$BRANCH" =~ legacy|current && $BOARDFAMILY == "rockchip-rk3588" ]] && rk35xx_gpu_vpu_tweaks
+	[[ "$BRANCH" == legacy && $BOARDFAMILY == "rockchip-rk356x" ]] && rk35xx_gpu_vpu_tweaks
 
 	#if [[ ${BOARD} == orangepi800 && ${SELECTED_CONFIGURATION} == desktop && ${RELEASE} =~ bullseye|bookworm ]]; then
 

@@ -57,13 +57,16 @@ PRE_INSTALL_DISTRIBUTION_SPECIFIC
 	# stage: install kernel and u-boot packages
 	# install distribution and board specific applications
 
-	install_distribution_specific
-	install_common
+	if [[ ${RELEASE} == "raspi" ]]; then
+		install_opi_specific
+	else
+		install_distribution_specific
+		install_common
 
-	# install locally built packages or install pre-built packages from orangepi
-	[[ $EXTERNAL_NEW == compile || $EXTERNAL_NEW == prebuilt ]] && chroot_installpackages_local
+		# install locally built packages or install pre-built packages from orangepi
+		[[ $EXTERNAL_NEW == compile || $EXTERNAL_NEW == prebuilt ]] && chroot_installpackages_local
 
-	#[[ $EXTERNAL_NEW == prebuilt ]] && chroot_installpackages "yes"
+		#[[ $EXTERNAL_NEW == prebuilt ]] && chroot_installpackages "yes"
 
 	echo "VIBE ----> customize img!!"
 	# stage: user customization script
@@ -71,12 +74,14 @@ PRE_INSTALL_DISTRIBUTION_SPECIFIC
 	customize_image
 	echo "VIBE ----> done img!!"
 
-	# remove packages that are no longer needed. Since we have intrudoced uninstall feature, we might want to clean things that are no longer needed
-	display_alert "No longer needed packages" "purge" "info"
-	chroot $SDCARD /bin/bash -c "apt-get autoremove -y"  >/dev/null 2>&1
+		# remove packages that are no longer needed. Since we have intrudoced uninstall feature, we might want to clean things that are no longer needed
+		display_alert "No longer needed packages" "purge" "info"
+		chroot $SDCARD /bin/bash -c "apt-get autoremove -y"  >/dev/null 2>&1
 
-	# create list of installed packages for debug purposes
-	chroot $SDCARD /bin/bash -c "dpkg --get-selections" | grep -v deinstall | awk '{print $1}' | cut -f1 -d':' > $DEST/${LOG_SUBPATH}/installed-packages-${RELEASE}$([[ ${BUILD_MINIMAL} == yes ]] && echo "-minimal")$([[ ${BUILD_DESKTOP} == yes  ]] && echo "-desktop").list 2>&1
+		# create list of installed packages for debug purposes
+		chroot $SDCARD /bin/bash -c "dpkg --get-selections" | grep -v deinstall | awk '{print $1}' | cut -f1 -d':' > $DEST/${LOG_SUBPATH}/installed-packages-${RELEASE}$([[ ${BUILD_MINIMAL} == yes ]] && echo "-minimal")$([[ ${BUILD_DESKTOP} == yes  ]] && echo "-desktop").list 2>&1
+
+	fi
 
 	# clean up / prepare for making the image
 	umount_chroot "$SDCARD"
@@ -106,6 +111,26 @@ PRE_INSTALL_DISTRIBUTION_SPECIFIC
 	trap - INT TERM EXIT
 } #############################################################################
 
+bootstrap(){
+	local BOOTSTRAP_CMD=debootstrap
+	local BOOTSTRAP_ARGS=()
+
+	export CAPSH_ARG="--drop=cap_setfcap"
+	export http_proxy=${APT_PROXY}
+
+	BOOTSTRAP_ARGS+=(--arch arm64)
+	BOOTSTRAP_ARGS+=(--include gnupg)
+	#BOOTSTRAP_ARGS+=(--components "main,contrib,non-free")
+	BOOTSTRAP_ARGS+=(--components "main")
+	BOOTSTRAP_ARGS+=(--exclude=info)
+	BOOTSTRAP_ARGS+=(--include=ca-certificates)
+	BOOTSTRAP_ARGS+=("$@")
+	printf -v BOOTSTRAP_STR '%q ' "${BOOTSTRAP_ARGS[@]}"
+
+	${BOOTSTRAP_CMD} $BOOTSTRAP_STR || true
+}
+export -f bootstrap
+
 # create_rootfs_cache
 #
 # unpacks cached rootfs for $RELEASE or creates one
@@ -130,6 +155,32 @@ create_rootfs_cache()
 		rm $SDCARD/etc/resolv.conf
 		echo "nameserver $NAMESERVER" >> $SDCARD/etc/resolv.conf
 		create_sources_list "$RELEASE" "$SDCARD/"
+	elif [[ $RELEASE == "raspi" ]]; then
+		display_alert "local not found" "Creating new rootfs cache for $RELEASE" "info"
+
+		cd $SDCARD # this will prevent error sh: 0: getcwd() failed
+
+		bootstrap bullseye "$SDCARD" "https://mirrors.ustc.edu.cn/debian/"
+
+		mount_chroot "$SDCARD"
+
+		display_alert "Diverting" "initctl/start-stop-daemon" "info"
+		# policy-rc.d script prevents starting or reloading services during image creation
+		printf '#!/bin/sh\nexit 101' > $SDCARD/usr/sbin/policy-rc.d
+		LC_ALL=C LANG=C chroot $SDCARD /bin/bash -c "dpkg-divert --quiet --local --rename --add /sbin/initctl" &> /dev/null
+		LC_ALL=C LANG=C chroot $SDCARD /bin/bash -c "dpkg-divert --quiet --local --rename --add /sbin/start-stop-daemon" &> /dev/null
+		printf '#!/bin/sh\necho "Warning: Fake start-stop-daemon called, doing nothing"' > $SDCARD/sbin/start-stop-daemon
+		printf '#!/bin/sh\necho "Warning: Fake initctl called, doing nothing"' > $SDCARD/sbin/initctl
+		chmod 755 $SDCARD/usr/sbin/policy-rc.d
+		chmod 755 $SDCARD/sbin/initctl
+		chmod 755 $SDCARD/sbin/start-stop-daemon
+
+		install_raspi_specific
+
+		umount_chroot "$SDCARD"
+
+		tar cp --xattrs --directory=$SDCARD/ --exclude='./dev/*' --exclude='./proc/*' --exclude='./run/*' --exclude='./tmp/*' \
+			--exclude='./sys/*' . | pv -p -b -r -s $(du -sb $SDCARD/ | cut -f1) -N "$display_name" | lz4 -5 -c > $cache_fname
 	else
 		display_alert "local not found" "Creating new rootfs cache for $RELEASE" "info"
 
@@ -153,10 +204,20 @@ create_rootfs_cache()
 		# Lets export the value of the pipe inside eval so we know outside what happened:
 		# ONEVAR="testing" eval 'bash -e -c "echo value once $ONEVAR && false && echo value twice $ONEVAR"' '| grep value'  '| grep value' ';EVALPIPE=(${PIPESTATUS[@]})' ; echo ${EVALPIPE[*]}
 
+		local release_version=${RELEASE}
+
+		if [[ ${RELEASE} == "sid" ]]; then
+			release_version=unstable
+			apt_mirror="https://snapshot.debian.org/archive/debian-ports/20221225T084846Z"
+			DEBOOTSTRAP_OPTION="--no-check-gpg --no-merged-usr"
+			PACKAGE_LIST_EXCLUDE="usr-is-merged"
+		fi
+
 		display_alert "Installing base system" "Stage 1/2" "info"
 		cd $SDCARD # this will prevent error sh: 0: getcwd() failed
+
 		eval 'debootstrap --variant=minbase --include=${DEBOOTSTRAP_LIST// /,} ${PACKAGE_LIST_EXCLUDE:+ --exclude=${PACKAGE_LIST_EXCLUDE// /,}} \
-			--arch=$ARCH --components=${DEBOOTSTRAP_COMPONENTS} $DEBOOTSTRAP_OPTION --foreign $RELEASE $SDCARD/ $apt_mirror' \
+			--arch=$ARCH --components=${DEBOOTSTRAP_COMPONENTS} $DEBOOTSTRAP_OPTION --foreign ${release_version} $SDCARD/ ${apt_mirror}' \
 			${PROGRESS_LOG_TO_FILE:+' | tee -a $DEST/${LOG_SUBPATH}/debootstrap.log'} \
 			${OUTPUT_DIALOG:+' | dialog --backtitle "$backtitle" --progressbox "Debootstrap (stage 1/2)..." $TTY_Y $TTY_X'} \
 			${OUTPUT_VERYSILENT:+' >/dev/null 2>/dev/null'} ';EVALPIPE=(${PIPESTATUS[@]})'
@@ -177,6 +238,14 @@ create_rootfs_cache()
 		[[ ${EVALPIPE[0]} -ne 0 || ! -f $SDCARD/bin/bash ]] && exit_with_error "Debootstrap base system for ${BRANCH} ${BOARD} ${RELEASE} ${DESKTOP_APPGROUPS_SELECTED} ${DESKTOP_ENVIRONMENT} ${BUILD_MINIMAL} second stage failed"
 
 		mount_chroot "$SDCARD"
+
+		if [[ ${RELEASE} == "sid" ]]; then
+			mkdir -p $SDCARD/etc/apt/apt.conf.d/
+		        echo "Acquire::Check-Valid-Until no;" > $SDCARD/etc/apt/apt.conf.d/99-no-check-valid-until
+			wget -qnc -P ${EXTER}/cache/debs/ https://snapshot.debian.org/archive/debian-ports/20220616T194833Z/pool-riscv64/main/i/icu/libicu71_71.1-3_riscv64.deb
+		        cp -v ${EXTER}/cache/debs/libicu71_71.1-3_riscv64.deb $SDCARD/
+		        LC_ALL=C LANG=C chroot $SDCARD /bin/bash -c "dpkg -i /libicu71_71.1-3_riscv64.deb" &> /dev/null
+		fi
 
 		display_alert "Diverting" "initctl/start-stop-daemon" "info"
 		# policy-rc.d script prevents starting or reloading services during image creation
@@ -277,6 +346,9 @@ create_rootfs_cache()
 
 			[[ ${PIPESTATUS[0]} -ne 0 ]] && exit_with_error "Installation of Orange Pi desktop packages for ${BRANCH} ${BOARD} ${RELEASE} ${DESKTOP_APPGROUPS_SELECTED} ${DESKTOP_ENVIRONMENT} ${BUILD_MINIMAL} failed"
 		fi
+
+		install_docker
+		[[ ${BOARDFAMILY} == "starfive2" ]] && jh7110_install_libs
 
 		# Remove packages from packages.uninstall
 
@@ -389,7 +461,7 @@ prepare_partitions() {
 	# parttype[nfs] is empty
 
 	# metadata_csum and 64bit may need to be disabled explicitly when migrating to newer supported host OS releases
-	if [[ $HOSTRELEASE =~ buster|bullseye|bookworm|bionic|focal|jammy|kinetic|sid ]]; then
+	if [[ $HOSTRELEASE =~ buster|bullseye|bookworm|bionic|focal|jammy|noble|kinetic|sid ]]; then
 		mkopts[ext4]="-q -m 2 -O ^64bit,^metadata_csum"
 	fi
 	# mkopts[fat] is empty
@@ -424,7 +496,7 @@ prepare_partitions() {
 	# mountopts[nfs] is empty
 
 	# default BOOTSIZE to use if not specified
-	DEFAULT_BOOTSIZE=256 # MiB
+	DEFAULT_BOOTSIZE=1024 # MiB
 	# size of UEFI partition. 0 for no UEFI. Don't mix UEFISIZE>0 and BOOTSIZE>0
 	UEFISIZE=${UEFISIZE:-0}
 	BIOSSIZE=${BIOSSIZE:-0}
@@ -751,6 +823,11 @@ create_image()
 	fi
 
 	local version="${BOARD^}_${REVISION}_${DISTRIBUTION,}_${RELEASE}_${IMAGE_TYPE}"${DESKTOP_ENVIRONMENT:+_$DESKTOP_ENVIRONMENT}"_linux$(grab_version "$LINUXSOURCEDIR")"
+
+	if [[ ${RELEASE} == "raspi" ]]; then
+		local version="${BOARD^}_${REVISION}_raspios_bullseye_${IMAGE_TYPE}"${DESKTOP_ENVIRONMENT:+_$DESKTOP_ENVIRONMENT}"_linux$(grab_version "$LINUXSOURCEDIR")"
+	fi
+
 	[[ $ROOTFS_TYPE == nfs ]] && version=${version}_nfsboot
 
 	destimg=$DEST/images/${version}
