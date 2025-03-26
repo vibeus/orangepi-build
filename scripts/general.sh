@@ -158,7 +158,7 @@ get_package_list_hash()
 
 # create_sources_list <release> <basedir>
 #
-# <release>: buster|bullseye|bookworm|bionic|focal|jammy|hirsute|sid
+# <release>: buster|bullseye|bookworm|bionic|focal|jammy|noble|hirsute|sid
 # <basedir>: path to root directory
 #
 create_sources_list()
@@ -184,7 +184,7 @@ create_sources_list()
 	EOF
 	;;
 
-	bullseye|bookworm|trixie)
+	bullseye)
 	cat <<-EOF > "${basedir}"/etc/apt/sources.list
 	deb https://${DEBIAN_MIRROR} $release main contrib non-free
 	#deb-src https://${DEBIAN_MIRROR} $release main contrib non-free
@@ -200,14 +200,34 @@ create_sources_list()
 	EOF
 	;;
 
-	sid) # sid is permanent unstable development and has no such thing as updates or security
-	cat <<-EOF > "${basedir}"/etc/apt/sources.list
-	deb http://${DEBIAN_MIRROR} $release main contrib non-free
-	#deb-src http://${DEBIAN_MIRROR} $release main contrib non-free
+	bookworm)
+	cat <<- EOF > "${basedir}"/etc/apt/sources.list
+	deb http://${DEBIAN_MIRROR} $release main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_MIRROR} $release main contrib non-free non-free-firmware
+
+	deb http://${DEBIAN_MIRROR} ${release}-updates main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_MIRROR} ${release}-updates main contrib non-free non-free-firmware
+
+	deb http://${DEBIAN_MIRROR} ${release}-backports main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_MIRROR} ${release}-backports main contrib non-free non-free-firmware
+
+	deb http://${DEBIAN_SECURTY} ${release}-security main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_SECURTY} ${release}-security main contrib non-free non-free-firmware
 	EOF
 	;;
 
-	xenial|bionic|focal|hirsute|impish|jammy)
+	sid) # sid is permanent unstable development and has no such thing as updates or security
+	cat <<- EOF > "${basedir}"/etc/apt/sources.list
+	deb https://snapshot.debian.org/archive/debian-ports/20221225T084846Z unstable main
+	#deb http://${DEBIAN_MIRROR} $release main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_MIRROR} $release main contrib non-free non-free-firmware
+
+	#deb http://${DEBIAN_MIRROR} unstable main contrib non-free non-free-firmware
+	#deb-src http://${DEBIAN_MIRROR} unstable main contrib non-free non-free-firmware
+	EOF
+	;;
+
+	xenial|bionic|focal|hirsute|impish|jammy|noble)
 	cat <<-EOF > "${basedir}"/etc/apt/sources.list
 	deb http://${UBUNTU_MIRROR} $release main restricted universe multiverse
 	#deb-src http://${UBUNTU_MIRROR} $release main restricted universe multiverse
@@ -221,6 +241,38 @@ create_sources_list()
 	deb http://${UBUNTU_MIRROR} ${release}-backports main restricted universe multiverse
 	#deb-src http://${UBUNTU_MIRROR} ${release}-backports main restricted universe multiverse
 	EOF
+	;;
+
+	raspi)
+	cat <<-EOF > "${basedir}"/etc/apt/sources.list
+	deb http://${DEBIAN_MIRROR} bullseye main contrib non-free
+	#deb-src http://${DEBIAN_MIRROR} bullseye main contrib non-free
+
+	deb http://${DEBIAN_MIRROR} bullseye-updates main contrib non-free
+	#deb-src http://${DEBIAN_MIRROR} bullseye-updates main contrib non-free
+
+	deb http://${DEBIAN_MIRROR} bullseye-backports main contrib non-free
+	#deb-src http://${DEBIAN_MIRROR} bullseye-backports main contrib non-free
+
+	deb http://${DEBIAN_SECURTY} bullseye-security main contrib non-free
+	#deb-src http://${DEBIAN_SECURTY} bullseye-security main contrib non-free
+	EOF
+
+	cat <<-EOF > "${basedir}"/etc/apt/sources.list.d/raspi.list
+	deb http://${RASPI_MIRROR} bullseye main
+	# Uncomment line below then 'apt-get update' to enable 'apt-get source'
+	#deb-src http://archive.raspberrypi.org/debian/ bullseye main
+	EOF
+
+	if [ -n "$APT_PROXY" ]; then
+		install -m 644 files/51cache "${APT_PROXY}/etc/apt/apt.conf.d/51cache"
+		sed "${basedir}/etc/apt/apt.conf.d/51cache" -i -e "s|APT_PROXY|${APT_PROXY}|"
+	else
+		rm -f "${basedir}/etc/apt/apt.conf.d/51cache"
+	fi
+
+	cat ${EXTER}/packages/raspi/stage0/00-configure-apt/files/raspberrypi.gpg.key | gpg --dearmor > "${basedir}/raspberrypi-archive-stable.gpg"
+	install -m 644 "${basedir}/raspberrypi-archive-stable.gpg" "${basedir}/etc/apt/trusted.gpg.d/"
 	;;
 	esac
 
@@ -822,13 +874,13 @@ function distro_menu ()
 				[[ -z "${DISTRIB_TYPE_LEGACY}" ]] && DISTRIB_TYPE="buster bionic focal"
 			elif [[ "${BRANCH}" == "current" ]]; then
 				DISTRIB_TYPE="${DISTRIB_TYPE_CURRENT}"
-				[[ -z "${DISTRIB_TYPE_CURRENT}" ]] && DISTRIB_TYPE="bullseye bookworm focal jammy"
+				[[ -z "${DISTRIB_TYPE_CURRENT}" ]] && DISTRIB_TYPE="bullseye bookworm focal jammy noble"
 			elif [[ "${BRANCH}" == "next" ]]; then
 				if [[ -n "${DISTRIB_TYPE_NEXT}" ]]; then
 					DISTRIB_TYPE="${DISTRIB_TYPE_NEXT}"
 				else
 					DISTRIB_TYPE="${DISTRIB_TYPE_CURRENT}"
-					[[ -z "${DISTRIB_TYPE_CURRENT}" ]] && DISTRIB_TYPE="bullseye bookworm focal jammy"
+					[[ -z "${DISTRIB_TYPE_CURRENT}" ]] && DISTRIB_TYPE="bullseye bookworm focal jammy noble"
 				fi
 			fi
 
@@ -889,7 +941,7 @@ addtorepo()
 # parameter "delete" remove incoming directory if publishing is succesful
 # function: cycle trough distributions
 
-	local distributions=("stretch" "bionic" "buster" "bullseye" "bookworm" "focal" "hirsute" "jammy" "sid")
+	local distributions=("stretch" "bionic" "buster" "bullseye" "bookworm" "focal" "hirsute" "jammy" "noble" "sid")
 	#local distributions=($(grep -rw config/distributions/*/ -e 'supported' | cut -d"/" -f3))
 	local errors=0
 
@@ -1019,7 +1071,7 @@ repo-manipulate()
 # "update" search for new files in output/debs* to add them to repository
 # "purge" leave only last 5 versions
 
-	local DISTROS=("stretch" "bionic" "buster" "bullseye" "bookworm" "focal" "hirsute" "jammy" "sid")
+	local DISTROS=("stretch" "bionic" "buster" "bullseye" "bookworm" "focal" "hirsute" "jammy" "noble" "sid")
 	#local DISTROS=($(grep -rw config/distributions/*/ -e 'supported' | cut -d"/" -f3))
 
 	case $@ in
@@ -1373,7 +1425,7 @@ prepare_host()
 	nfs-kernel-server ntpdate p7zip-full parted patchutils pigz pixz          \
 	pkg-config pv python3-dev python3-distutils qemu-user-static rsync swig   \
 	systemd-container u-boot-tools udev unzip uuid-dev wget whiptail zip      \
-	zlib1g-dev"
+	zlib1g-dev gcc-riscv64-linux-gnu"
 
   if [[ $(dpkg --print-architecture) == amd64 ]]; then
 
@@ -1393,7 +1445,7 @@ prepare_host()
   fi
 
 	# Add support for Ubuntu 20.04, 21.04 and Mint 20.x
-	if [[ $HOSTRELEASE =~ ^(focal|hirsute|jammy|ulyana|ulyssa|bullseye|bookworm|uma)$ ]]; then
+	if [[ $HOSTRELEASE =~ ^(focal|hirsute|jammy|noble|noble|ulyana|ulyssa|bullseye|bookworm|uma)$ ]]; then
 		hostdeps+=" python2 python3"
 		ln -fs /usr/bin/python2.7 /usr/bin/python2
 		ln -fs /usr/bin/python2.7 /usr/bin/python
@@ -1408,7 +1460,7 @@ prepare_host()
 	#
 	# NO_HOST_RELEASE_CHECK overrides the check for a supported host system
 	# Disable host OS check at your own risk. Any issues reported with unsupported releases will be closed without discussion
-	if [[ -z $HOSTRELEASE || "focal jammy" != *"$HOSTRELEASE"* ]]; then
+	if [[ -z $HOSTRELEASE || "focal jammy noble" != *"$HOSTRELEASE"* ]]; then
 		if [[ $NO_HOST_RELEASE_CHECK == yes ]]; then
 			display_alert "You are running on an unsupported system" "${HOSTRELEASE:-(unknown)}" "wrn"
 			display_alert "Do not report any errors, warnings or other issues encountered beyond this point" "" "wrn"
@@ -1508,6 +1560,7 @@ prepare_host()
 			# download external Linaro compiler and missing special dependencies since they are needed for certain sources
 
 		local toolchains=(
+			"ky-toolchain-linux-glibc-x86_64-v1.0.1.tar.xz"
 			"gcc-linaro-aarch64-none-elf-4.8-2013.11_linux.tar.xz"
 			"gcc-linaro-arm-none-eabi-4.8-2014.04_linux.tar.xz"
 			"gcc-linaro-arm-linux-gnueabihf-4.8-2014.04_linux.tar.xz"
@@ -1630,6 +1683,11 @@ download_and_verify()
 
 	if [[ -f ${localdir}/${dirname}/.download-complete ]]; then
 		return
+	fi
+
+	if [[ ${filename} == *ky* ]]; then
+		server="http://www.iplaystore.cn/"
+		remotedir=""
 	fi
 
 	# switch to china mirror if US timeouts
@@ -1818,9 +1876,37 @@ show_checklist_variables ()
 
 install_wiringop()
 {
-        install_deb_chroot "$EXTER/cache/debs/arm64/wiringpi_2.47.deb"
-        chroot "${SDCARD}" /bin/bash -c "apt-mark hold wiringpi" >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
+	install_deb_chroot "$EXTER/cache/debs/${ARCH}/wiringpi_2.57.deb"
+	chroot "${SDCARD}" /bin/bash -c "apt-mark hold wiringpi" >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
+
+	if [[ ${IGNORE_UPDATES} != yes ]]; then
+
+		fetch_from_repo "https://github.com/orangepi-xunlong/wiringOP.git" "${EXTER}/cache/sources/wiringOP" "branch:next" "yes"
+		fetch_from_repo "https://github.com/orangepi-xunlong/wiringOP-Python.git" "${EXTER}/cache/sources/wiringOP-Python" "branch:next" "yes"
+
+	fi
+
+	cp ${EXTER}/cache/sources/wiringOP/next ${SDCARD}/usr/src/wiringOP -rfa
+	cp ${EXTER}/cache/sources/wiringOP-Python/next ${SDCARD}/usr/src/wiringOP-Python -rfa
+
+	rm $SDCARD/root/*.deb >/dev/null 2>&1
 }
+
+
+install_310b-npu-driver()
+{
+	local driver_path="$EXTER/cache/sources/ascend-driver"
+	local driver_name="Ascend-hdk-310b-npu-driver_23.0.5_linux-aarch64-opiaimax.run"
+	local driver=${driver_path}/${driver_name}
+
+	if [[ -f "${driver}" ]]; then
+		display_alert "Installing" "$driver_name" "info"
+		cp "${driver}" "${SDCARD}/opt/"
+		chmod +x "${SDCARD}/opt/Ascend-hdk-310b-npu-driver_23.0.5_linux-aarch64-opiaimax.run"
+		chroot "${SDCARD}" /bin/bash -c "/opt/${driver_name} --chroot --full --install-username=orangepi --install-usergroup=orangepi --install-for-all"
+	fi
+}
+
 
 install_docker() {
 
@@ -1833,16 +1919,16 @@ install_docker() {
 		buster|bullseye|bookworm)
 		distributor_id="debian"
 		;;
-		xenial|bionic|focal|jammy)
+		xenial|bionic|focal|jammy|noble)
 		distributor_id="ubuntu"
 		;;
 	esac
 
-	if [[ ${SELECTED_CONFIGURATION} == desktop ]]; then
+	#if [[ ${SELECTED_CONFIGURATION} == desktop ]]; then
 		mirror_url=https://repo.huaweicloud.com
-	else
-		mirror_url=https://mirrors.aliyun.com
-	fi
+	#else
+	#	mirror_url=https://mirrors.aliyun.com
+	#fi
 
 	chroot "${SDCARD}" /bin/bash -c "curl -fsSL ${mirror_url}/docker-ce/linux/${distributor_id}/gpg | apt-key add -"
 	echo "deb [arch=${ARCH}] ${mirror_url}/docker-ce/linux/${distributor_id} ${RELEASE} stable" > "${SDCARD}"/etc/apt/sources.list.d/docker.list
