@@ -16,20 +16,32 @@ DAEMON_USER=root
 DAEMON_NAME=vibe_ageing_app
 PIDFILE=/var/run/$DAEMON_NAME.pid
 
+# Use python from the virtual environment
+PYTHON_EXEC=/home/orangepi/vibe-env/bin/python3
 # Add python executable to DAEMON
-DAEMON="/usr/bin/python3.8 $DAEMON"
-
-. /lib/lsb/init-functions
+DAEMON="$PYTHON_EXEC $DAEMON"
+LOG_FILE="/var/log/vibe_ageing_app.log"
+# touch log file
+if [ ! -f $LOG_FILE ]; then
+    touch $LOG_FILE
+    chown orangepi $LOG_FILE
+    chmod 664 $LOG_FILE
+fi
 
 do_start () {
     chown orangepi $DIR
-
     log_daemon_msg "Starting system $DAEMON_NAME daemon"
-    start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
+    echo "Starting system $DAEMON_NAME daemon" >> $LOG_FILE
+    start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile \
+        --user $DAEMON_USER --chuid $DAEMON_USER \
+        --exec /bin/bash -- -c "source /home/orangepi/vibe-env/bin/activate && 
+        $DAEMON $DAEMON_OPTS >> $LOG_FILE 2>&1"
     log_end_msg $?
 }
+
 do_stop () {
     log_daemon_msg "Stopping system $DAEMON_NAME daemon"
+    echo  "Stopping system $DAEMON_NAME daemon" >> $LOG_FILE
     start-stop-daemon --stop --pidfile $PIDFILE --retry 10
     log_end_msg $?
 }

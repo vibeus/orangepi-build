@@ -40,7 +40,7 @@ Main() {
 			VibeCustomImage
 			# your code here
 			;;
-		jammy)
+		noble)
 			VibeCustomImage
 			# your code here
 			;;
@@ -51,14 +51,19 @@ VibeCustomImage() {
 	echo "Installing Ubuntu Focol- Vibe Custom Image"
 	
 	echo "---> installing python pip and pyaudio"
+	sudo add-apt-repository -y ppa:deadsnakes/ppa  #for pyaudio
 	sudo apt-get update
 	
-	sudo apt-get install -y software-properties-common python3.8 python3-dev python3-pip python3-pyaudio python3-setuptools
+	sudo apt-get install -y software-properties-common python3.8 python3.8-venv python3.8-dev python3-dev python3-pip python3-pyaudio python3-setuptools python3-venv portaudio19-dev
 	
-	sudo update-alternatives  --set python /usr/bin/python3.8
+	sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
+	sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+	sudo update-alternatives --set python /usr/bin/python3.8
 	
-	echo "---> installing python pip dependency libs"
-	pip3 install pyusb pyaudio numpy pyserial v4l2py
+	echo "---> installing python pip dependency libs in vitual env"
+	python3 -m venv /home/orangepi/vibe-env
+	source /home/orangepi/vibe-env/bin/activate
+	pip3 install pyusb pyaudio numpy pyserial v4l2py -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 	
 	echo "---> enable serial port5 to boot config overlay"
@@ -70,6 +75,7 @@ VibeCustomImage() {
 	
 	# userpatches/overlay/etc/init.d/S99_vibe_ageing_app
 	echo "---> copy app start script"
+	touch /var/log/vibe_ageing_app.log
 	cp -f /tmp/overlay/etc/init.d/S99_vibe_ageing_app /etc/init.d
 	cp -f /tmp/overlay/etc/rc.local /etc
 	
