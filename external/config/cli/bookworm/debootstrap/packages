@@ -31,3 +31,4 @@ ucf
 udev
 whiptail
 wireless-regdb
+dconf-cli

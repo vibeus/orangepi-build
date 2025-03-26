@@ -28,7 +28,11 @@ fi
 
 if test "${console}" = "display" || test "${console}" = "both"; then setenv consoleargs "console=${debug_uart},115200 console=tty1"; fi
 if test "${console}" = "serial"; then setenv consoleargs "console=${debug_uart},115200"; fi
-if test "${bootlogo}" = "true"; then setenv consoleargs "bootsplash.bootfile=bootsplash.orangepi ${consoleargs}"; fi
+if test "${bootlogo}" = "true"; then
+	setenv consoleargs "splash plymouth.ignore-serial-consoles ${consoleargs}"
+else
+	setenv consoleargs "splash=verbose ${consoleargs}"
+fi
 
 # get PARTUUID of first partition on SD/eMMC it was loaded from
 # mmc 0 is always mapped to device u-boot (2016.09+) was loaded from
@@ -49,8 +53,8 @@ fdt set disp boot_disp1 <${boot_disp1}>
 fdt set disp boot_disp2 <${boot_disp2}>
 fdt set disp tv_vdid <${tv_vdid}>
 
-fdt set disp fb0_width <${fb0_width}>
-fdt set disp fb0_height <${fb0_height}>
+fdt set /soc/disp fb0_width <${fb0_width}>
+fdt set /soc/disp fb0_height <${fb0_height}>
 
 fdt set mmc0 cap-sd-highspeed
 #fdt set mmc0 sd-uhs-sdr50
@@ -70,6 +74,13 @@ if test "${mmc_bootdev}" = "2"; then
 	echo "Set emmc_max_frequency to ${emmc_max_frequency}"
 	fdt set /soc/sdmmc@04022000 max-frequency <${emmc_max_frequency}>
 fi
+
+for overlay_file in ${overlays}; do
+	if load ${devtype} ${devnum} ${load_addr} ${prefix}dtb/sunxi/overlay/${overlay_prefix}-${overlay_file}.dtbo; then
+		echo "Applying kernel provided DT overlay ${overlay_prefix}-${overlay_file}.dtbo"
+		fdt apply ${load_addr} || setenv overlay_error "true"
+	fi
+done
 
 for overlay_file in ${user_overlays}; do
         if load ${devtype} ${devnum} ${load_addr} ${prefix}overlay-user/${overlay_file}.dtbo; then
